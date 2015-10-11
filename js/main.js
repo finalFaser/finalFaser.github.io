@@ -9,26 +9,25 @@ var FADE_TIME = 600; //ms
 var BEAM_SPEED_START = 100;
 var FIRE_TIME = 100;//ms
 
-var Beam = function(game, x, y) {
-    Phaser.Sprite.call(this, game, x?x:200, y?y:200, 'beam');
+var Beam = function(game, myCollisionGroup) {
+    Phaser.Sprite.call(this, game, 0, 0, 'beam');
+
+    this.game.physics.p2.enable(this, true);
+    this.body.fixedRotation = true;
+    this.myCollisionGroup = myCollisionGroup;
+    this.body.setRectangleFromSprite(this);//(this.width, this.height);
+    this.body.setCollisionGroup(myCollisionGroup);
 
     this.alphaTween = this.game.add.tween(this).to({alpha: 0}, FADE_TIME, null, false, TOTAL - FADE_TIME);
     this.alphaTween.onComplete.add(function(){
         this.kill();
     }, this);
-    this.sizeTween = this.game.add.tween(this.scale).to({x: MAX_LENGTH}, TOTAL - FADE_TIME);
-
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
-
+    this.sizeTween = this.game.add.tween(this).to({width: MAX_LENGTH}, TOTAL - FADE_TIME);
+    this.glowTween = this.game.add.tween(this.scale).to({y: 2}, 200, null, null, 50, -1, true);
     this.velocityTween = this.game.add.tween(this.body.velocity).to({
         x : 0,// Math.cos(this.rotation) * BEAM_SPEED_END,
         y : 0 //Math.sin(this.rotation) * BEAM_SPEED_END
     }, TOTAL-FIRE_TIME,  null, false, 0);
-
-
-
-    //this.velocityTween.onStart.add(alterVelocity, this);
-    //this.velocityTween.onLoop.add(alterVelocity, this);
 
     this.anchor.set(0, 0.5);
     this.kill();
@@ -38,6 +37,17 @@ var Beam = function(game, x, y) {
 
 Beam.prototype = Object.create(Phaser.Sprite.prototype);
 
+Beam.prototype.update = function() {
+   Phaser.Sprite.prototype.update.call(this);
+
+   this.body.setRectangleFromSprite(this);
+   //this.body.setPosition(this.position);
+   this.body.reset(this.x, this.y);
+   this.body.setCollisionGroup(this.myCollisionGroup);
+
+   //game.debug.bodyInfo(this, 32, 32);
+   //game.debug.body(this);
+};
 
 
 Beam.prototype.shoot = function(x,y) {
@@ -59,18 +69,17 @@ Beam.prototype.shoot = function(x,y) {
 
     this.sizeTween.start();
     this.alphaTween.start();
-
+    this.glowTween.start();
     // Aim the gun at the pointer.
     // All this function does is calculate the angle using
     // Math.atan2(yPointer-yGun, xPointer-xGun)
     this.rotation = this.game.physics.arcade.angleToPointer(this);
-    var that = this;
-    //setTimeout( , FIRE_TIME);
+    this.body.rotation = this.rotation;
 
     game.time.events.add(Phaser.Timer.QUARTER, function(){
-        that.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
-        that.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
-        that.velocityTween.start();
+        this.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
+        this.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
+        this.velocityTween.start();
     }, this).autoDestroy = true;
 
 
@@ -80,45 +89,6 @@ Beam.prototype.constructor = Beam;
 
 module.exports = Beam;
 },{}],2:[function(require,module,exports){
-/**
- * Created by mariomc on 10/10/2015.
- */
-
-
-function createFrames( name, animationName, numberFrames ) {
-    var frameArray = [];
-    for( var i = 1; i <= numberFrames; i++ ) {
-        var pad = "";
-        if (i < 10){ pad = "00"; } else if ( i < 100 ) { pad = "0";}
-        frameArray.push( name + '_' + animationName + '_' + pad + i );
-    }
-    console.warn(frameArray);
-    return frameArray;
-};
-
-var Character = function( game, x, y, name, animations ){
-    //var arcade = new Phaser.Arcade(game);
-
-    Phaser.Sprite.call( this, game, x, y, 'characters', name);
-
-    this.anchor.set(.5,.5);
-
-    animations = animations || {};
-
-    for( var frame in animations ){
-        if(animations.hasOwnProperty(frame)){
-            var numberFrames = animations[frame];
-            this.animations.add( frame, createFrames( name, frame, numberFrames ) )
-        }
-    }
-};
-Character.prototype = Object.create(Phaser.Sprite.prototype);
-
-Character.prototype.constructor = Character;
-
-
-module.exports = Character;
-},{}],3:[function(require,module,exports){
 /**
  * Created by jorge.graca on 10/10/2015.
  */
@@ -158,7 +128,7 @@ Explosion.prototype.boom = function(x,y) {
 Explosion.prototype.constructor = Explosion;
 
 module.exports = Explosion;
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 /**
  * Created by jorge.graca on 10/10/2015.
  */
@@ -168,7 +138,11 @@ var BULLET_SPEED = 500; // pixels/second
 var Projectile = function(game, x, y) {
     Phaser.Sprite.call(this, game, x, y, 'BalaPotassio');
 
-    this.game.physics.enable(this, Phaser.Physics.ARCADE);
+    this.game.physics.p2.enable(this, true);
+    this.body.setCircle(this.width/2);
+    this.body.fixedRotation = true;
+
+
     this.anchor.set(0.5, 0.5);
     this.kill();
 }
@@ -188,7 +162,8 @@ Projectile.prototype.shootBullet = function(x,y) {
     // Phaser takes care of this for me by setting this flag
     // but you can do it yourself by killing the bullet if
     // its x,y coordinates are outside of the world.
-    this.checkWorldBounds = true;
+    this.body.collideWorldBounds = false;//p2
+    this.checkWorldBounds = true;//arcade
     this.outOfBoundsKill = true;
 
     // Set the bullet position to the gun position.
@@ -207,7 +182,7 @@ Projectile.prototype.shootBullet = function(x,y) {
 Projectile.prototype.constructor = Projectile;
 
 module.exports = Projectile;
-},{}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 /**
  * Created by jorge.graca on 10/10/2015.
  */
@@ -215,11 +190,19 @@ var Projectile = require('..\\common\\Projectile');
 
 var NUMBER_OF_BULLETS = 50;
 
-var ProjectilePool = function(game){
+var ProjectilePool = function(game, bulletCollisionGroup, collisionArr){
     this.bulletPool = game.add.group();
     this.iBullet = 0;
+
+    this.bulletPool.enableBody = true;
+    this.bulletPool.physicsBodyType = Phaser.Physics.P2JS;
+
     for(var i = 0; i < NUMBER_OF_BULLETS; i++) {
-        this.bulletPool.add(new Projectile(game, 0, 0));
+        var tempP = new Projectile(game, 0, 0);
+
+        tempP.body.setCollisionGroup(bulletCollisionGroup);
+        tempP.body.collides(collisionArr);
+        this.bulletPool.add(tempP);
     }
 };
 
@@ -228,10 +211,10 @@ ProjectilePool.prototype.shoot = function(x,y) {
 };
 
 module.exports = ProjectilePool;
-},{"..\\common\\Projectile":4}],6:[function(require,module,exports){
+},{"..\\common\\Projectile":3}],5:[function(require,module,exports){
 "use strict";
 
-window.game = new Phaser.Game(600, 600, Phaser.AUTO);
+window.game = new Phaser.Game(1200, 600, Phaser.AUTO);
 
 game.globals = {
     //Add variables here that you want to access globally
@@ -244,7 +227,7 @@ game.state.add('menu', require('./states/menu.js'));
 game.state.add('boot', require('./states/boot.js'));
 
 game.state.start('boot');
-},{"./states/boot.js":7,"./states/load.js":8,"./states/menu.js":9,"./states/play.js":10}],7:[function(require,module,exports){
+},{"./states/boot.js":6,"./states/load.js":7,"./states/menu.js":8,"./states/play.js":9}],6:[function(require,module,exports){
 module.exports = {
     init: function () {
         //Add here your scaling options
@@ -259,12 +242,12 @@ module.exports = {
     },
 
     create: function () {
-        game.plugins.add(Phaser.Plugin.Inspector);
+        //game.plugins.add(Phaser.Plugin.Inspector);
 
         game.state.start('load');
     }
 };
-},{}],8:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 module.exports = {
     loadingLabel: function () {
         //Here we add a label to let the user know we are loading everything
@@ -287,8 +270,8 @@ module.exports = {
 
 
         this.load.image('BalaPotassio', 'assets/bullet.png');//asynchronous
-        this.load.spritesheet('explosion', 'assets/explosion.png', 128, 128);//asynchronous
-        this.load.spritesheet('characters', 'assets/characters.png', 'assets/characters.json');//asynchronous
+        game.load.spritesheet('explosion', 'assets/explosion.png', 128, 128);//asynchronous
+        this.load.spritesheet('barbarian', 'assets/barbarian.png', 144, 144);//asynchronous
         this.load.image('beam', 'assets/beam.png');//asynchronous
     },
 
@@ -296,7 +279,7 @@ module.exports = {
         game.state.start('play'); //TODO: do the menu
     }
 };
-},{}],9:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 module.exports = {
     create: function(){
         //This is just like any other Phaser create function
@@ -305,27 +288,47 @@ module.exports = {
         //Game logic goes here
     },
 };
-},{}],10:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 var ProjectilePool = require('../common/ProjectilePool');
 var Explosion = require('../common/Explosion');
 var Beam = require('../common/Beam');
-var Character = require('../common/Character');
 
 // Define constants
-var SHOT_DELAY = 200; // milliseconds (5 bullets/second)
-var LAZER_DELAY = 3000; //ms (0.5/sec)
+var LAZER_DELAY = 2500; //ms (0.5/sec)
 
 module.exports = {
     create: function(){
-        this.lastBulletShotAt = 0;
         this.lastLazerShotAt = 0;
 
-        this.bulletPool = new ProjectilePool(this.game);
-        this.bulletPool2 = new ProjectilePool(this.game);
         this.explosion = new Explosion(this.game, 0, 0);
-        this.beam = this.add.existing(new Beam(this.game));
 
-        this._barbarian = new Character(300, 300, 'barbarian', {walk: 8, run: 8, attack: 3});
+        this.game.physics.startSystem(Phaser.Physics.P2JS);
+        this.game.physics.p2.setImpactEvents(true);
+        this.bulletCollisionGroup = game.physics.p2.createCollisionGroup();
+        this.beamCollisionGroup = game.physics.p2.createCollisionGroup();
+        this.game.physics.p2.updateBoundsCollisionGroup();
+        this.bulletPool = new ProjectilePool(this.game, this.bulletCollisionGroup, [this.bulletCollisionGroup, this.beamCollisionGroup]);
+        this.bulletPool2 = new ProjectilePool(this.game, this.bulletCollisionGroup, [this.bulletCollisionGroup, this.beamCollisionGroup]);
+
+        this.beam = this.add.existing(new Beam(this.game, this.beamCollisionGroup));
+        this.beam.body.collides(this.bulletCollisionGroup, function(obj1, obj2){
+            // Create an explosion
+            this.explosion.boom(obj2.x, obj2.y);
+
+            // Kill the bullet
+            //obj2.kill();
+        }, this);
+
+
+
+
+
+        this._barbarian = this.add.sprite(300, 300, 'barbarian');
+        this._barbarian.anchor.set(0.5, 0.5);
+
+        this._barbarian.animations.add('walk', [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        this._barbarian.animations.add('run', [11, 12, 13, 14, 15, 16, 17, 18]);
+        this._barbarian.animations.add('attack', [19, 20, 21]);
 
         this.game.physics.arcade.enable(this._barbarian);
 
@@ -336,8 +339,6 @@ module.exports = {
     },
     update: function(){
 
-        //this.beam.update();
-
         // Shoot a bullet
         if (this.game.input.activePointer.isDown) {
             if (!this._isAttacking) {
@@ -346,17 +347,27 @@ module.exports = {
                 this._isAttacking = 15;
             }
         }
-        // Check if bullets have collided with the ground
-        this.game.physics.arcade.collide(this.bulletPool.bulletPool, this.bulletPool2.bulletPool, function(bullet, bullet2) {
+        // Check if bullets have collided
+ /*       this.game.physics.arcade.collide(this.bulletPool.bulletPool, this.bulletPool2.bulletPool, function(bullet, bullet2) {
             // Create an explosion
-            //this.getExplosion(bullet.x, bullet.y);
-
             this.explosion.boom(bullet.x, bullet.y);
 
             // Kill the bullet
             bullet.kill();
             bullet2.kill();
         }, null, this);
+
+
+        // Check if bullets have collided with beams
+        this.game.physics.arcade.collide(this.bulletPool2.bulletPool, this.beam, function(beam, bullet) {
+            // Create an explosion
+            this.explosion.boom(bullet.x, bullet.y);
+
+            // Kill the bullet
+            bullet.kill();
+        }, null, this);
+*/
+
 
         this._barbarian.body.velocity.x = 0;
         this._barbarian.body.velocity.y = 0;
@@ -377,8 +388,13 @@ module.exports = {
             //others have magic mike
             //we have magic numbers
             if (this._isAttacking === 8) {
-                this.bulletPool.shoot(this._barbarian.x + 60, this._barbarian.y - 15);
-                this.bulletPool2.shoot(600,600);
+                //this.bulletPool.shoot(this._barbarian.x + 60, this._barbarian.y - 15);
+                this.bulletPool2.shoot(600, 600);
+            }
+
+            if (this.game.time.now - this.lastLazerShotAt > LAZER_DELAY) {
+                this.lastLazerShotAt = this.game.time.now;
+                this.beam.shoot(this._barbarian.x, this._barbarian.y);
             }
         }
 
@@ -397,7 +413,7 @@ module.exports = {
         }
     }
 };
-},{"../common/Beam":1,"../common/Character":2,"../common/Explosion":3,"../common/ProjectilePool":5}]},{},[6])
+},{"../common/Beam":1,"../common/Explosion":2,"../common/ProjectilePool":4}]},{},[5])
 
 
 //# sourceMappingURL=main.js.map
