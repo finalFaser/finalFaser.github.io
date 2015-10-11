@@ -5,48 +5,56 @@
 
 var MAX_LENGTH = 850; // pixels
 var TOTAL = 2000; //ms
-var FADE_TIME = 600; //ms
-var BEAM_SPEED_START = 100;
+var FADE_TIME = 200; //ms
+var BEAM_SPEED_START = 1800;
 var FIRE_TIME = 100;//ms
 
 var Beam = function(game, myCollisionGroup) {
     Phaser.Sprite.call(this, game, 0, 0, 'beam');
+    this.anchor.set(0.5, 0.5);//BECAUSE P2JS this is always true
+    this.scale.setTo(0, 1);
 
-    this.game.physics.p2.enable(this, true);
-    this.body.fixedRotation = true;
-    this.myCollisionGroup = myCollisionGroup;
-    this.body.setRectangleFromSprite(this);//(this.width, this.height);
-    this.body.setCollisionGroup(myCollisionGroup);
-
-    this.alphaTween = this.game.add.tween(this).to({alpha: 0}, FADE_TIME, null, false, TOTAL - FADE_TIME);
+    this.alphaTween = this.game.add.tween(this).to({alpha: 0.1}, FADE_TIME, null, false, TOTAL - FADE_TIME);
     this.alphaTween.onComplete.add(function(){
         this.kill();
     }, this);
-    this.sizeTween = this.game.add.tween(this).to({width: MAX_LENGTH}, TOTAL - FADE_TIME);
+
+    this.sizeTween = this.game.add.tween(this).to({width: MAX_LENGTH}, TOTAL - FADE_TIME, 'Expo');
+    this.sizeTween.onComplete.add(function(){
+        this.body.velocity.x = 0;
+        this.body.velocity.y = 0;
+    }, this);
     this.glowTween = this.game.add.tween(this.scale).to({y: 2}, 200, null, null, 50, -1, true);
+
+
+    this.game.physics.p2.enable(this, debug);
+
+    this.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
+    this.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
     this.velocityTween = this.game.add.tween(this.body.velocity).to({
         x : 0,// Math.cos(this.rotation) * BEAM_SPEED_END,
         y : 0 //Math.sin(this.rotation) * BEAM_SPEED_END
-    }, TOTAL-FIRE_TIME,  null, false, 0);
+    }, TOTAL - FADE_TIME,  'Expo', false, 0);
 
-    this.anchor.set(0, 0.5);
     this.kill();
 
-    this.scale.setTo(0, 1);
+    this.body.fixedRotation = true;
+    this.myCollisionGroup = myCollisionGroup;
+    this.body.setRectangleFromSprite(this);
+    this.body.setCollisionGroup(myCollisionGroup);
+    this.body.kinematic = true;
+    //this.body.damping= 0;
+    //this.body.mass= 0.1;
 }
 
 Beam.prototype = Object.create(Phaser.Sprite.prototype);
 
 Beam.prototype.update = function() {
-   Phaser.Sprite.prototype.update.call(this);
+    Phaser.Sprite.prototype.update.call(this);
 
-   this.body.setRectangleFromSprite(this);
-   //this.body.setPosition(this.position);
-   this.body.reset(this.x, this.y);
-   this.body.setCollisionGroup(this.myCollisionGroup);
-
-   //game.debug.bodyInfo(this, 32, 32);
-   //game.debug.body(this);
+    //this.body.setZeroVelocity();
+    this.body.setRectangleFromSprite(this);
+    this.body.setCollisionGroup(this.myCollisionGroup);
 };
 
 
@@ -59,7 +67,8 @@ Beam.prototype.shoot = function(x,y) {
     // Phaser takes care of this for me by setting this flag
     // but you can do it yourself by killing the bullet if
     // its x,y coordinates are outside of the world.
-    //this.checkWorldBounds = true;
+    this.body.collideWorldBounds = false;//p2
+    this.checkWorldBounds = false;//arcade
     //this.outOfBoundsKill = true;
 
     // Set the bullet position to the gun position.
@@ -74,13 +83,15 @@ Beam.prototype.shoot = function(x,y) {
     // All this function does is calculate the angle using
     // Math.atan2(yPointer-yGun, xPointer-xGun)
     this.rotation = this.game.physics.arcade.angleToPointer(this);
-    this.body.rotation = this.rotation;
 
-    game.time.events.add(Phaser.Timer.QUARTER, function(){
-        this.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
-        this.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
-        this.velocityTween.start();
-    }, this).autoDestroy = true;
+    this.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
+    this.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
+    this.velocityTween.start();
+    //game.time.events.add(Phaser.Timer.QUARTER, function(){
+    //    this.body.velocity.x = Math.cos(this.rotation) * BEAM_SPEED_START;
+    //    this.body.velocity.y = Math.sin(this.rotation) * BEAM_SPEED_START;
+    //    this.velocityTween.start();
+    //}, this).autoDestroy = true;
 
 
 };
@@ -138,7 +149,7 @@ var BULLET_SPEED = 500; // pixels/second
 var Projectile = function(game, x, y) {
     Phaser.Sprite.call(this, game, x, y, 'BalaPotassio');
 
-    this.game.physics.p2.enable(this, true);
+    this.game.physics.p2.enable(this, debug);
     this.body.setCircle(this.width/2);
     this.body.fixedRotation = true;
 
@@ -227,6 +238,8 @@ game.state.add('menu', require('./states/menu.js'));
 game.state.add('boot', require('./states/boot.js'));
 
 game.state.start('boot');
+
+window.debug = false;
 },{"./states/boot.js":6,"./states/load.js":7,"./states/menu.js":8,"./states/play.js":9}],6:[function(require,module,exports){
 module.exports = {
     init: function () {
@@ -242,7 +255,10 @@ module.exports = {
     },
 
     create: function () {
-        //game.plugins.add(Phaser.Plugin.Inspector);
+        if(debug){
+            game.plugins.add(Phaser.Plugin.Inspector);
+        }
+
 
         game.state.start('load');
     }
@@ -270,9 +286,12 @@ module.exports = {
 
 
         this.load.image('BalaPotassio', 'assets/bullet.png');//asynchronous
-        game.load.spritesheet('explosion', 'assets/explosion.png', 128, 128);//asynchronous
+        this.load.spritesheet('explosion', 'assets/explosion.png', 128, 128);//asynchronous
         this.load.spritesheet('barbarian', 'assets/barbarian.png', 144, 144);//asynchronous
         this.load.image('beam', 'assets/beam.png');//asynchronous
+        this.load.image('background', 'assets/BG (2).png');//asynchronous
+
+        this.load.audio('themeSound', 'assets/finalFaserTheme.mp3');//asynchronous
     },
 
     create: function () {
@@ -298,6 +317,11 @@ var LAZER_DELAY = 2500; //ms (0.5/sec)
 
 module.exports = {
     create: function(){
+
+        this.background = this.add.sprite(0, 0, 'background');
+
+        this.themeSound = this.game.add.audio('themeSound', 0.05, true).play();
+
         this.lastLazerShotAt = 0;
 
         this.explosion = new Explosion(this.game, 0, 0);
@@ -306,17 +330,17 @@ module.exports = {
         this.game.physics.p2.setImpactEvents(true);
         this.bulletCollisionGroup = game.physics.p2.createCollisionGroup();
         this.beamCollisionGroup = game.physics.p2.createCollisionGroup();
-        this.game.physics.p2.updateBoundsCollisionGroup();
+        //this.game.physics.p2.updateBoundsCollisionGroup();
         this.bulletPool = new ProjectilePool(this.game, this.bulletCollisionGroup, [this.bulletCollisionGroup, this.beamCollisionGroup]);
         this.bulletPool2 = new ProjectilePool(this.game, this.bulletCollisionGroup, [this.bulletCollisionGroup, this.beamCollisionGroup]);
 
-        this.beam = this.add.existing(new Beam(this.game, this.beamCollisionGroup));
+        this.beam = this.add.existing(new Beam(this.game, this.beamCollisionGroup, this.bulletCollisionGroup));
         this.beam.body.collides(this.bulletCollisionGroup, function(obj1, obj2){
             // Create an explosion
             this.explosion.boom(obj2.x, obj2.y);
 
             // Kill the bullet
-            //obj2.kill();
+            obj2.sprite.kill();
         }, this);
 
 
@@ -347,27 +371,6 @@ module.exports = {
                 this._isAttacking = 15;
             }
         }
-        // Check if bullets have collided
- /*       this.game.physics.arcade.collide(this.bulletPool.bulletPool, this.bulletPool2.bulletPool, function(bullet, bullet2) {
-            // Create an explosion
-            this.explosion.boom(bullet.x, bullet.y);
-
-            // Kill the bullet
-            bullet.kill();
-            bullet2.kill();
-        }, null, this);
-
-
-        // Check if bullets have collided with beams
-        this.game.physics.arcade.collide(this.bulletPool2.bulletPool, this.beam, function(beam, bullet) {
-            // Create an explosion
-            this.explosion.boom(bullet.x, bullet.y);
-
-            // Kill the bullet
-            bullet.kill();
-        }, null, this);
-*/
-
 
         this._barbarian.body.velocity.x = 0;
         this._barbarian.body.velocity.y = 0;
@@ -388,13 +391,13 @@ module.exports = {
             //others have magic mike
             //we have magic numbers
             if (this._isAttacking === 8) {
-                //this.bulletPool.shoot(this._barbarian.x + 60, this._barbarian.y - 15);
+                this.bulletPool.shoot(this._barbarian.x + 60, this._barbarian.y - 15);
                 this.bulletPool2.shoot(600, 600);
             }
 
             if (this.game.time.now - this.lastLazerShotAt > LAZER_DELAY) {
                 this.lastLazerShotAt = this.game.time.now;
-                this.beam.shoot(this._barbarian.x, this._barbarian.y);
+                //this.beam.shoot(this._barbarian.x, this._barbarian.y);
             }
         }
 
